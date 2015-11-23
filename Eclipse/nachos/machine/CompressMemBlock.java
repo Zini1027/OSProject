@@ -60,6 +60,20 @@ public class CompressMemBlock {
                 + (unCompressedByte % Processor.pageSize == 0 ? 0 : 1);
     }
 
+    /**
+     * For process initialization add continuous vpn to vpnList
+     * */
+    public void setVPNList(int vpn, int numPages) {
+        for (int i = 0; i < numPages; i++) {
+            vpn += i;
+            vpnList.add(vpn);
+        }
+    }
+
+    public int getVPN(int offset) {
+        return vpnList.get(offset);
+    }
+
     // check number of vpn == number of uncompressed page
     public boolean isVPNListSet() {
         return (vpnList.size() == getUncompressedPageNum());

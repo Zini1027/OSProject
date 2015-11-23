@@ -30,6 +30,7 @@ public class UserProcess {
      */
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
+
         // pageTable = new TranslationEntry[numPhysPages];
         // for (int i = 0; i < numPhysPages; i++)
         // pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
@@ -314,6 +315,7 @@ public class UserProcess {
         // and finally reserve 1 page for arguments
         numPages++;
 
+        // if loadSection successfully, continue.
         if (!loadSections())
             return false;
 
@@ -354,67 +356,15 @@ public class UserProcess {
         // return false;
         // }
 
-        pageTable = new TranslationEntry[numPages];
-
         // (TODO) if process larger then physical memory size
         // load uncompressed memory section first, then load to compressed memory section
         if (numPages > Machine.processor().getNumPhysPages()) {
             enableCompressionMemory = true;
-            int numPageUncompressedMem = Machine.processor().getNumPhysPages()
-                    / memoryDivideRatio;
-            int numPageCompressedMem = Machine.processor().getNumPhysPages()
-                    - numPageUncompressedMem;
-
-            // load first numPageUncompressedSection in process to uncompressed memory section
-            int ppn = 0; // (TODO) get ppn from memory usage tracking function
-            for (int i = 0; i < numPageUncompressedMem; i++)
-                pageTable[i] = new TranslationEntry(i, ppn, true, false,
-                        false, false, false, -1, null);
-            int pageLoaded = 0;
-            boolean isUncompressedFull = false;
-            for (int s = 0; s < coff.getNumSections(); s++) {
-                CoffSection section = coff.getSection(s);
-
-                Lib.debug(dbgProcess, "\tinitializing " + section.getName()
-                        + " section (" + section.getLength() + " pages)");
-
-                int availUncompressedPages = 5; // (TODO) get it from memory usage tracking
-                                                // functions
-                if ((availUncompressedPages - section.getLength()) >= numReservedPages) {
-                    // load to uncompressed memory
-                    for (int i = 0; i < section.getLength(); i++) {
-                        int vpn = section.getFirstVPN() + i;
-                        // load page to physical memory
-                        section.loadPage(i, pageTable[vpn].ppn);
-                    }
-                } else {
-                    // (TODO) load section to compressed memory
-                    int availCompressedPages = 10; // (TODO) get it from memory usage function
-                    // get number of pages for compression
-                    byte[] compressBuf = new byte[compressedBlockPages * pageSize];
-                    CompressMemBlock cmb = new CompressMemBlock();
-
-                    // (TODO) check what's the normal section length, maybe we can compress whole
-                    // section together
-                    if (section.getLength() < compressedBlockPages) {
-                        // compress whole section
-                        section.loadPagesToCompressBuf(compressBuf);
-                    }
-
-                    // or if section size larger than compressedBlockPages, divide section into
-                    // several block. We may have block size < compressedBlockPages
-
-                    // call compress function
-                    // allocate memory in compression section
-                    // update pageTable entries
-                    // write compressed bytes to compressed section
-                }
-            }
-
-            return true;
+            return loadSectionToCombinedMem();
         }
 
         // If process fits in physical memory, load to whole memory
+        pageTable = new TranslationEntry[numPages];
 
         // (TODO) Physical Memory usage tracking map and functions
         // call allocation function to return the allocated ppn
@@ -438,6 +388,99 @@ public class UserProcess {
             }
         }
 
+        return true;
+    }
+
+    public boolean loadSectionToCombinedMem() {
+        int numPhysicalPages = Machine.processor().getNumPhysPages();
+        int numUncompressedPages = numPhysicalPages / (memoryDivideRatio + 1);
+        int numCompressedPages = numPhysicalPages - numUncompressedPages;
+        int compressMemStartPPN = numUncompressedPages;
+        boolean uncompressedMemFull = false;
+        boolean compressedMemFull = false;
+
+        pageTable = new TranslationEntry[numPages];
+
+        for (int s = 0; s < coff.getNumSections(); s++) {
+            CoffSection section = coff.getSection(s);
+            int sectionLen = section.getLength();
+
+            Lib.debug(dbgProcess, "\tinitializing " + section.getName()
+                    + " section (" + section.getLength() + " pages)");
+
+            int availUncompressedPages = 5; // (TODO) get it from memory usage tracking
+                                            // functions
+            if (!uncompressedMemFull && (availUncompressedPages - sectionLen > numReservedPages)) {
+                // load to uncompressed memory
+                for (int i = 0; i < sectionLen; i++) {
+                    int vpn = section.getFirstVPN() + i;
+                    int ppn = 0; // (TODO) get ppn from memory usage tracking function
+                    pageTable[vpn] = new TranslationEntry(vpn, ppn, true, true,
+                            false, false, false, -1, null);
+                    // load page to physical memory
+                    section.loadPage(i, ppn);
+                }
+                continue;
+            }
+            System.out.println("Loaded " + (numUncompressedPages - availUncompressedPages)
+                    + " pages to uncompressed memory");
+
+            uncompressedMemFull = true;
+
+            // (TODO) load section to compressed memory
+            int availCompressedPages = 10; // (TODO) get it from memory usage function
+            // get number of pages for compression
+            byte[] compressBuf = new byte[compressedBlockPages * pageSize];
+
+            // starting section page offset for compressionBlockPages
+            int spn = 0;
+            if (!compressedMemFull && (availCompressedPages - sectionLen > numReservedPages)) {
+                for (int i = 0; i < sectionLen; i += compressedBlockPages) {
+                    int vpn = section.getFirstVPN() + i;
+                    // if left number of pages in section < default compressedBlockPages
+                    int numPageLoadToBuf = Math.min(compressedBlockPages, sectionLen - i);
+
+                    section.loadPagesToCompressBuf(spn, numPageLoadToBuf, compressBuf);
+                    spn += numPageLoadToBuf;
+
+                    // (TODO) call compression function, return byte array of compressed data
+                    byte[] compressedBlock = null;
+                    int pageUsed = (compressedBlock.length / pageSize)
+                            + (compressedBlock.length % pageSize == 0 ? 0 : 1);
+
+                    // (TODO) get available consecutive pages in compressed memory, return the first
+                    // ppn
+                    // how about if cannot find consecutive pages
+                    int ppn = 0;
+                    if (ppn == -1) {
+                        System.out.println("No "
+                                + pageUsed + " consecutive pages in compressed memory available.");
+                        break;
+                    }
+
+                    // create CompressMemBlock
+                    CompressMemBlock cmb = new CompressMemBlock();
+                    cmb.startAddr = ppn * pageSize;
+                    cmb.compressedByte = compressedBlock.length;
+                    cmb.setVPNList(vpn, numPageLoadToBuf);
+
+                    // Add pageTable entries for pages in compressed page block
+                    for (int j = 0; j < numPageLoadToBuf; j++) {
+                        ppn += j;
+                        pageTable[vpn] = new TranslationEntry(vpn, ppn, true, true,
+                                false, false, true, j, cmb);
+                        vpn++;
+                    }
+
+                    // load compressed page to physical memory
+                    Lib.assertTrue(writeVirtualMemory(cmb.startAddr, compressedBlock) == cmb.compressedByte);
+                }
+            } else {
+                compressedMemFull = true;
+                System.out.println("Load compressed memory error: Not enough space");
+                return false;
+            }
+        }
         return true;
     }
 
@@ -630,4 +673,5 @@ public class UserProcess {
 
     // leave some empty pages in both uncompressed and compressed memory for initialization
     private static final int numReservedPages = 4;
+
 }

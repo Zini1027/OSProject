@@ -210,7 +210,7 @@ public class CoffSection {
     }
 
     // (TODO)
-    public void loadPagesToCompressBuf(byte[] buf) {
+    public void loadPagesToCompressBuf(int spn, int numPages, byte[] buf) {
 
     }
 
