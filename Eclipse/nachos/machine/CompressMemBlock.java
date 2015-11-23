@@ -17,22 +17,65 @@
 
 package nachos.machine;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class CompressMemBlock {
 
-    public CompressMemBlock(int addr, int bytyUsed) {
+    public CompressMemBlock() {
+
+    }
+
+    public CompressMemBlock(int addr, int byteUsed) {
         this.startAddr = addr;
-        this.byteUsed = byteUsed;
+        this.compressedByte = byteUsed;
+    }
+
+    public int getStartAddr() {
+        return startAddr;
+    }
+
+    public void setStartAddr(int startAddr) {
+        this.startAddr = startAddr;
+    }
+
+    public int getCompressedByte() {
+        return compressedByte;
+    }
+
+    public void setCompressedByte(int compressedByte) {
+        this.compressedByte = compressedByte;
+    }
+
+    public int getUnCompressedByte() {
+        return unCompressedByte;
+    }
+
+    public void setUnCompressedByte(int unCompressedByte) {
+        this.unCompressedByte = unCompressedByte;
+    }
+
+    public int getUncompressedPageNum() {
+        return (unCompressedByte / Processor.pageSize)
+                + (unCompressedByte % Processor.pageSize == 0 ? 0 : 1);
+    }
+
+    // check number of vpn == number of uncompressed page
+    public boolean isVPNListSet() {
+        return (vpnList.size() == getUncompressedPageNum());
     }
 
     /** The compressed memory start addr. */
     public int startAddr;
 
     /** Number of byte in the compressed block. */
-    public int byteUsed;
+    public int compressedByte;
+
+    public int unCompressedByte;
 
     /**
      * vpn for each page in compressed block
      */
-    public int[] vpnList;
+    public List<Integer> vpnList = new ArrayList<Integer>();
 
 }

@@ -4,6 +4,7 @@ import java.io.EOFException;
 
 import nachos.machine.Coff;
 import nachos.machine.CoffSection;
+import nachos.machine.CompressMemBlock;
 import nachos.machine.Lib;
 import nachos.machine.Machine;
 import nachos.machine.OpenFile;
@@ -29,9 +30,9 @@ public class UserProcess {
      */
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
-        pageTable = new TranslationEntry[numPhysPages];
-        for (int i = 0; i < numPhysPages; i++)
-            pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+        // pageTable = new TranslationEntry[numPhysPages];
+        // for (int i = 0; i < numPhysPages; i++)
+        // pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
     }
 
     /**
@@ -323,6 +324,7 @@ public class UserProcess {
         this.argc = args.length;
         this.argv = entryOffset;
 
+        // (TODO) make sure args are loaded into uncompressed memory not compressed memory
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
             // write the
@@ -367,32 +369,49 @@ public class UserProcess {
             int ppn = 0; // (TODO) get ppn from memory usage tracking function
             for (int i = 0; i < numPageUncompressedMem; i++)
                 pageTable[i] = new TranslationEntry(i, ppn, true, false,
-                        false, false);
+                        false, false, false, -1, null);
             int pageLoaded = 0;
+            boolean isUncompressedFull = false;
             for (int s = 0; s < coff.getNumSections(); s++) {
                 CoffSection section = coff.getSection(s);
 
                 Lib.debug(dbgProcess, "\tinitializing " + section.getName()
                         + " section (" + section.getLength() + " pages)");
 
-                int availablePages = 1; // (TODO) get it from memory usage tracking functions
-                if (section.getLength() < availablePages) {
+                int availUncompressedPages = 5; // (TODO) get it from memory usage tracking
+                                                // functions
+                if ((availUncompressedPages - section.getLength()) >= numReservedPages) {
                     // load to uncompressed memory
                     for (int i = 0; i < section.getLength(); i++) {
                         int vpn = section.getFirstVPN() + i;
-
                         // load page to physical memory
                         section.loadPage(i, pageTable[vpn].ppn);
                     }
                 } else {
-                    // (TODO)
+                    // (TODO) load section to compressed memory
+                    int availCompressedPages = 10; // (TODO) get it from memory usage function
                     // get number of pages for compression
+                    byte[] compressBuf = new byte[compressedBlockPages * pageSize];
+                    CompressMemBlock cmb = new CompressMemBlock();
+
+                    // (TODO) check what's the normal section length, maybe we can compress whole
+                    // section together
+                    if (section.getLength() < compressedBlockPages) {
+                        // compress whole section
+                        section.loadPagesToCompressBuf(compressBuf);
+                    }
+
+                    // or if section size larger than compressedBlockPages, divide section into
+                    // several block. We may have block size < compressedBlockPages
+
                     // call compress function
                     // allocate memory in compression section
                     // update pageTable entries
                     // write compressed bytes to compressed section
                 }
             }
+
+            return true;
         }
 
         // If process fits in physical memory, load to whole memory
@@ -402,7 +421,7 @@ public class UserProcess {
         int allocatedPPN = 0; // temporary use
         for (int i = 0; i < numPages; i++)
             pageTable[i] = new TranslationEntry(i, allocatedPPN, true, false,
-                    false, false);
+                    false, false, false, -1, null);
 
         // load sections
         for (int s = 0; s < coff.getNumSections(); s++) {
@@ -573,7 +592,10 @@ public class UserProcess {
             processor.writeRegister(Processor.regV0, result);
             processor.advancePC();
             break;
-
+        case Processor.exceptionPageFault:
+            // (TODO) HandlePageFaultException
+            // call swap funciton
+            break;
         default:
             Lib.debug(dbgProcess, "Unexpected exception: " +
                     Processor.exceptionNames[cause]);
@@ -602,4 +624,10 @@ public class UserProcess {
 
     // uncompressed memory section : compressed memory section
     private static final int memoryDivideRatio = 1;
+
+    // number of pages to compressed together
+    private static final int compressedBlockPages = 4;
+
+    // leave some empty pages in both uncompressed and compressed memory for initialization
+    private static final int numReservedPages = 4;
 }
