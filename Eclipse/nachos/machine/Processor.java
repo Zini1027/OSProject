@@ -3,6 +3,8 @@
 package nachos.machine;
 
 import nachos.security.Privilege;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The <tt>Processor</tt> class simulates a MIPS processor that supports a subset of the R3000
@@ -276,6 +278,33 @@ public final class Processor {
      */
     public static int offsetFromAddress(int address) {
         return (int) ((address & 0xFFFFFFFFL) % pageSize);
+    }
+    
+    public  ArrayList<Integer> findVictim(int victimNum) {
+    	ArrayList<Integer> victims = new ArrayList<Integer>();
+
+    	int i = 0;
+    	while(victims.size() < victimNum && i < translations.length) {
+    		if(!translations[i].used && !translations[i].dirty) victims.add(i);
+    		i++;
+    	}
+    	i = 0;
+    	while(victims.size() < victimNum && i < translations.length) {
+    		if(!translations[i].used && translations[i].dirty) victims.add(i);
+    		i++;
+    	}
+    	i = 0;
+    	while(victims.size() < victimNum && i < translations.length) {
+    		if(translations[i].used && !translations[i].dirty) victims.add(i);
+    		i++;
+    	}
+    	i = 0;
+    	while(victims.size() < victimNum && i < translations.length) {
+    		if(translations[i].used && translations[i].dirty) victims.add(i);
+    		i++;
+    	}
+
+    	return victims;
     }
 
     private void finishLoad() {
