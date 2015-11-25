@@ -31,9 +31,8 @@ public class UserProcess {
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
 
-        // pageTable = new TranslationEntry[numPhysPages];
-        // for (int i = 0; i < numPhysPages; i++)
-        // pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+        pageTable = new TranslationEntry[numVirtualPages];
+
     }
 
     /**
@@ -142,18 +141,32 @@ public class UserProcess {
         Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
 
         byte[] memory = Machine.processor().getMemory();
+        int firstVPN = Processor.pageFromAddress(vaddr);
+        int firstOffset = Processor.offsetFromAddress(vaddr);
+        int lastVPN = Processor.pageFromAddress(vaddr + length);
 
-        // for now, just assume that virtual addresses equal physical addresses
-        // if (vaddr < 0 || vaddr >= memory.length)
-        // return 0;
-        //
-        // int amount = Math.min(length, memory.length - vaddr);
-        // System.arraycopy(memory, vaddr, data, offset, amount);
+        TranslationEntry entry = getPageTableEntry(firstVPN, false);
 
-        int paddr = translateVaddrToPaddr(vaddr);
+        if (entry == null) {
+            return 0;
+        }
 
-        int amount = Math.min(length, memory.length - paddr);
-        System.arraycopy(memory, paddr, data, offset, amount);
+        // load the first page ( not start at offset=0)
+        int amount = Math.min(length, pageSize - firstOffset);
+        System.arraycopy(memory, Processor.makeAddress(entry.ppn, firstOffset),
+                data, offset, amount);
+        offset += amount;
+
+        for (int i = firstVPN + 1; i <= lastVPN; i++) {
+            entry = getPageTableEntry(i, false);
+            if (entry == null)
+                return amount;
+            int len = Math.min(length - amount, pageSize);
+            System.arraycopy(memory, Processor.makeAddress(entry.ppn, 0), data,
+                    offset, len);
+            offset += len;
+            amount += len;
+        }
 
         return amount;
     }
@@ -192,36 +205,64 @@ public class UserProcess {
             int length) {
         Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
 
-        int vPageNumber = Processor.pageFromAddress(vaddr);
-        TranslationEntry pageEntry = pageTable[vPageNumber];
-
-        if (pageEntry == null) {
-            System.out.println("Attempting to write to an unmapped page");
-            return 0;
-        }
-
-        if (pageEntry.readOnly) {
-            System.out.println("attempting to write to read-only memory");
-            return 0;
-        }
-
-        int paddr = translateVaddrToPaddr(vaddr);
-        if (-1 == paddr) {
-            return 0;
-        }
-
         byte[] memory = Machine.processor().getMemory();
 
-        // for now, just assume that virtual addresses equal physical addresses
-        if (paddr < 0 || paddr >= memory.length)
-            return 0;
+        int firstVPN = Processor.pageFromAddress(vaddr);
+        int firstOffset = Processor.offsetFromAddress(vaddr);
+        int lastVPN = Processor.pageFromAddress(vaddr + length);
 
-        int amount = Math.min(length, memory.length - paddr);
-        System.arraycopy(data, offset, memory, paddr, amount);
+        TranslationEntry entry = pageTable[firstVPN];
+
+        if (entry == null) {
+            return 0;
+        }
+
+        int amount = Math.min(length, pageSize - firstOffset);
+        System.arraycopy(data, offset, memory, Processor.makeAddress(entry.ppn,
+                firstOffset), amount);
+        offset += amount;
+
+        for (int i = firstVPN + 1; i <= lastVPN; i++) {
+            entry = getPageTableEntry(i, true);
+            if (entry == null)
+                return amount;
+            int len = Math.min(length - amount, pageSize);
+            System.arraycopy(data, offset, memory, Processor.makeAddress(
+                    entry.ppn, 0), len);
+            offset += len;
+            amount += len;
+        }
 
         return amount;
     }
 
+    protected TranslationEntry getPageTableEntry(int vpn, boolean isWrite) {
+        // out of virtual memory range
+        if (vpn < 0 || vpn >= numPages) {
+            return null;
+        }
+
+        TranslationEntry entry = pageTable[vpn];
+        // non-initialized page table entry
+        if (entry == null) {
+            return null;
+        }
+
+        // write to readOnly page
+        if (entry.readOnly && isWrite) {
+            return null;
+        }
+        // set page to used
+        entry.used = true;
+
+        // if write, set dirty bit true
+        if (isWrite)
+            entry.dirty = true;
+
+        return entry;
+    }
+
+    @Deprecated
     protected int translateVaddrToPaddr(int vaddr) {
         int vPageNumber = Processor.pageFromAddress(vaddr);
         int pageAddress = Processor.offsetFromAddress(vaddr);
@@ -326,7 +367,7 @@ public class UserProcess {
         this.argc = args.length;
         this.argv = entryOffset;
 
-        // (TODO) make sure args are loaded into uncompressed memory not compressed memory
+        // Load arguments
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
             // write the
@@ -350,28 +391,18 @@ public class UserProcess {
      * @return <tt>true</tt> if the sections were successfully loaded.
      */
     protected boolean loadSections() {
-        // if (numPages > Machine.processor().getNumPhysPages()) {
-        // coff.close();
-        // Lib.debug(dbgProcess, "\tinsufficient physical memory");
-        // return false;
-        // }
-
-        // (TODO) if process larger then physical memory size
-        // load uncompressed memory section first, then load to compressed memory section
         if (numPages > Machine.processor().getNumPhysPages()) {
-            enableCompressionMemory = true;
-            return loadSectionToCombinedMem();
+            coff.close();
+            Lib.debug(dbgProcess, "\tinsufficient physical memory");
+            return false;
         }
 
-        // If process fits in physical memory, load to whole memory
-        pageTable = new TranslationEntry[numPages];
-
-        // (TODO) Physical Memory usage tracking map and functions
-        // call allocation function to return the allocated ppn
-        int allocatedPPN = 0; // temporary use
-        for (int i = 0; i < numPages; i++)
-            pageTable[i] = new TranslationEntry(i, allocatedPPN, true, false,
+        // initialize first numPages entries in page table
+        // put code, stack, and argument in uncompressed memory
+        for (int i = 0; i < numPages; i++) {
+            pageTable[i] = new TranslationEntry(i, i, true, false,
                     false, false, false, -1, null);
+        }
 
         // load sections
         for (int s = 0; s < coff.getNumSections(); s++) {
@@ -382,15 +413,24 @@ public class UserProcess {
 
             for (int i = 0; i < section.getLength(); i++) {
                 int vpn = section.getFirstVPN() + i;
-
+                int ppn = 0; // (TODO) get it from memory allocation function
+                pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section
+                        .isReadOnly(), false, false, false, -1, null);
                 // load page to physical memory
                 section.loadPage(i, pageTable[vpn].ppn);
             }
         }
 
+        // allocate memory for stack and arguments
+        for (int i = numPages - stackPages - 1; i < numPages; i++) {
+            int ppn = 0; // (TODO) get it from memory allocation function
+            pageTable[i] = new TranslationEntry(i, ppn, true, false, false,
+                    false, false, -1, null);
+        }
         return true;
     }
 
+    @Deprecated
     public boolean loadSectionToCombinedMem() {
         int numPhysicalPages = Machine.processor().getNumPhysPages();
         int numUncompressedPages = numPhysicalPages / (memoryDivideRatio + 1);
@@ -664,6 +704,8 @@ public class UserProcess {
     private static final char dbgProcess = 'a';
 
     private static boolean enableCompressionMemory = false;
+
+    private static int numVirtualPages = 256;
 
     // uncompressed memory section : compressed memory section
     private static final int memoryDivideRatio = 1;
