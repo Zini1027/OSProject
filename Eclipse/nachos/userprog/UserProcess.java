@@ -677,13 +677,48 @@ public class UserProcess {
             break;
         case Processor.exceptionPageFault:
             // (TODO) HandlePageFaultException
-            // call swap funciton
+            handlePageFault(processor.readRegister(Processor.regBadVAddr));
             break;
         default:
             Lib.debug(dbgProcess, "Unexpected exception: " +
                     Processor.exceptionNames[cause]);
             Lib.assertNotReached("Unexpected exception");
         }
+    }
+
+    private void handlePageFault(int vpn) {
+        // Assume program is preloaded in uncompressed memory
+
+        // (TODO) if page fault in compression section
+        // 1. load compressed block to decompress-buffer, update page status (make page available
+        // for allocating)
+        // 2. call decompression function on decompress-buffer
+        // 3. call Mem allocate function, find pages to swap out
+        // 4. load swap-out pages to compress-buffer, update page status
+        // 5. call compression function on compress-buffer
+        // 6. Call Mem allocate function find an available place in compressed memory, if not find,
+        // throw error, if found, put compressed byte in allocated place and update page status
+        // 7. Put decompressed pages into uncompressed memory, update page status
+        // 8. update page table for all pages
+        if (pageTable[vpn].compressed) {
+            // how much pages needed after decompression
+            CompressMemBlock cmb = pageTable[vpn].compressMemBlock;
+            // Create a decompress-buffer
+            byte[] decompressBuf = new byte[cmb.compressedByte];
+            // load compress block into decompressBuf
+
+        }
+
+        // (TODO)if page fault in stack region and not create yet
+        // 1. Call Mem allocate function, find a least used swap-out page (maybe 4 pages )
+        // 2. load swap-out page to compress-buffer, update page status
+        // 3. call compress function on compress-buffer
+        // 4. call Mem allocate function,find an available place in compress memory. If not find,
+        // throw error, if fit, update Page status
+        // 5. put compressed swap-out page in compress memory
+        // 6. Initialize new allocated stack page with zero
+        // 7. update page table for both swap-out page and swap-in page
+
     }
 
     /** The program being run by this process. */

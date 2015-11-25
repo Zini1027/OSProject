@@ -61,9 +61,9 @@ public final class TranslationEntry {
         readOnly = entry.readOnly;
         used = entry.used;
         dirty = entry.dirty;
-        compressed = compressed;
-        compressOffset = compressOffset;
-        compressMemBlock = compressMemBlock;
+        compressed = entry.compressed;
+        compressOffset = entry.compressOffset;
+        compressMemBlock = entry.compressMemBlock;
     }
 
     /** The virtual page number. */
