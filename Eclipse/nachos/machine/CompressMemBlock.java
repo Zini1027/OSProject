@@ -26,17 +26,17 @@ public class CompressMemBlock {
 
     }
 
-    public CompressMemBlock(int addr, int byteUsed) {
-        this.startAddr = addr;
+    public CompressMemBlock(int ppn, int byteUsed) {
+        this.startPPN = ppn;
         this.compressedByte = byteUsed;
     }
 
     public int getStartAddr() {
-        return startAddr;
+        return startPPN;
     }
 
-    public void setStartAddr(int startAddr) {
-        this.startAddr = startAddr;
+    public void setStartAddr(int startPPN) {
+        this.startPPN = startPPN;
     }
 
     public int getCompressedByte() {
@@ -63,11 +63,8 @@ public class CompressMemBlock {
     /**
      * For process initialization add continuous vpn to vpnList
      * */
-    public void setVPNList(int vpn, int numPages) {
-        for (int i = 0; i < numPages; i++) {
-            vpn += i;
-            vpnList.add(vpn);
-        }
+    public void setVPNList(List<Integer> vpns) {
+        vpnList.addAll(vpns);
     }
 
     public int getVPN(int offset) {
@@ -80,7 +77,7 @@ public class CompressMemBlock {
     }
 
     /** The compressed memory start addr. */
-    public int startAddr;
+    public int startPPN;
 
     /** Number of byte in the compressed block. */
     public int compressedByte;
