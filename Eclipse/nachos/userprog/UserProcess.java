@@ -290,20 +290,26 @@ public class UserProcess {
         return length;
     }
 
+    /**
+     * Check pageTable entry availability and update status for reading or writing vm
+     * */
     protected TranslationEntry getPageTableEntry(int vpn, boolean isWrite) {
         // out of virtual memory range
         if (vpn < 0 || vpn >= numPages) {
+            Lib.debug(dbgProcess, "\tVPN out of range");
             return null;
         }
 
         TranslationEntry entry = pageTable[vpn];
         // non-initialized page table entry
         if (entry == null) {
+            Lib.debug(dbgProcess, "\tNon-initialized table entry");
             return null;
         }
 
         // write to readOnly page
         if (entry.readOnly && isWrite) {
+            Lib.debug(dbgProcess, "\tWrite to read-only page");
             return null;
         }
         // set page to used
@@ -312,7 +318,6 @@ public class UserProcess {
         // if write, set dirty bit true
         if (isWrite)
             entry.dirty = true;
-
         return entry;
     }
 
@@ -455,7 +460,7 @@ public class UserProcess {
         // preload program and argument into uncompressed memory. If not fit, throw error.
         if (programPages + 1 > Machine.processor().getNumPhysPages()) {
             coff.close();
-            Lib.debug(dbgProcess, "\tinsufficient physical memory");
+            Lib.debug(dbgProcess, "\tinsufficient uncompressed memory");
             return false;
         }
 
@@ -908,6 +913,8 @@ public class UserProcess {
             readVirtualMemory(Processor.makeAddress(v, 0), compressBuf, offset, pageSize);
             offset += pageSize;
         }
+        // (TODO) check swap-out pages dirty bit. if true, write back. Maybe not needed for stack
+
         // (TODO) update page status for swapped-out pages
 
         // Compress swapped-out pages
