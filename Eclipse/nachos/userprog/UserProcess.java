@@ -419,24 +419,20 @@ public class UserProcess {
         if (!loadSections())
             return false;
 
-        // initialize stack pages
-        for(int i = programPages ; i < programPages + stackPages ; i++) {
-        	pageTable[i] = new TranslationEntry(i, i, true, false,
-                    false, false, false, -1, null);
-        }
-        byte[] memory = Machine.processor().getMemory();
-        Arrays.fill(memory, programPages * pageSize,
-        		(programPages + stackPages) * pageSize, (byte) 0);
+        // Does not initialize stack pages here, they are loaded on demand
         
         // store arguments after program
-        // int entryOffset = (numPages - 1) * pageSize;
-        int entryOffset = programPages * pageSize;
+        int entryOffset = (numPages - 1) * pageSize;
+        //int entryOffset = programPages * pageSize;
         int stringOffset = entryOffset + args.length * 4;
 
         this.argc = args.length;
         this.argv = entryOffset;
 
         // Load arguments
+        // update page table entry for argument page
+        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, true, false,
+                false, false, -1, null);
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
             // write the
@@ -448,11 +444,6 @@ public class UserProcess {
             Lib.assertTrue(writeVirtualMemory(stringOffset, new byte[] { 0 }) == 1);
             stringOffset += 1;
         }
-
-        // update page table entry for argument page
-        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, numPages - 1, true, true, false,
-                false, false, -1, null);
-
         return true;
     }
 
