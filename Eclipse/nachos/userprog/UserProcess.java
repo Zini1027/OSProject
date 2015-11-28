@@ -60,9 +60,12 @@ public class UserProcess {
      * @return <tt>true</tt> if the program was successfully executed.
      */
     public boolean execute(String name, String[] args) {
-        if (!load(name, args))
-            return false;
-        System.out.println("testttt");
+    	System.out.printf("UserProcess start to execute %s with args %s\n", name, String.join(", ", args));
+        if (!load(name, args)) {
+        	System.out.println("load failed");
+        	return false;
+        }
+
         new UThread(this).setName(name).fork();
 
         return true;

@@ -52,9 +52,10 @@ public class UserKernel extends ThreadedKernel {
      */
     @Override
     public void selfTest() {
-        super.selfTest();
-
-        System.out.println("Testing the console device. Typed characters");
+        // super.selfTest(); Not necessary to test threaded kernel for now
+    	
+    	// Disable console testing for now.
+        /* System.out.println("Testing the console device. Typed characters");
         System.out.println("will be echoed until q is typed.");
 
         char c;
@@ -64,7 +65,7 @@ public class UserKernel extends ThreadedKernel {
             console.writeByte(c);
         } while (c != 'q');
 
-        System.out.println("");
+        System.out.println("");*/
     }
 
     /**
