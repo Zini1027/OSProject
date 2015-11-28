@@ -5,7 +5,10 @@ package nachos.machine;
 import nachos.security.*;
 import nachos.ag.*;
 
+import java.util.List;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * The master class of the simulated machine. Processes command line arguments,
@@ -146,7 +149,12 @@ public final class Machine {
 		else if (arg.equals("-x")) {
 		    Lib.assertTrue(i < args.length, "switch without argument");
 		    shellProgramName = args[i++];		    
-		}		    
+		}
+		else if (arg.equals("-a")) {
+			// Arguments
+		    Lib.assertTrue(i < args.length, "switch without argument");
+		    shellProgramArugments.add(args[i++]);
+		}
 		else if (arg.equals("-z")) {
 		    System.out.print(copyright);
 		    System.exit(1);
@@ -376,8 +384,13 @@ public final class Machine {
 	Lib.assertTrue(shellProgramName != null);
 	return shellProgramName;
     }
+    
+    public static String[] getShellProgramArguements() {
+    	return shellProgramArugments.toArray(new String[shellProgramArugments.size()]);
+    }
 
     private static String shellProgramName = null;
+    private static List<String> shellProgramArugments = new ArrayList<>();
 
     /**
      * Return the name of the process class that the kernel should use. In

@@ -58,9 +58,12 @@ public class UserProcess {
      * @return <tt>true</tt> if the program was successfully executed.
      */
     public boolean execute(String name, String[] args) {
-        if (!load(name, args))
-            return false;
-        System.out.println("testttt");
+    	System.out.printf("UserProcess start to execute %s with args %s\n", name, String.join(", ", args));
+        if (!load(name, args)) {
+        	System.out.println("load failed");
+        	return false;
+        }
+
         new UThread(this).setName(name).fork();
 
         return true;
@@ -290,20 +293,26 @@ public class UserProcess {
         return length;
     }
 
+    /**
+     * Check pageTable entry availability and update status for reading or writing vm
+     * */
     protected TranslationEntry getPageTableEntry(int vpn, boolean isWrite) {
         // out of virtual memory range
         if (vpn < 0 || vpn >= numPages) {
+            Lib.debug(dbgProcess, "\tVPN out of range");
             return null;
         }
 
         TranslationEntry entry = pageTable[vpn];
         // non-initialized page table entry
         if (entry == null) {
+            Lib.debug(dbgProcess, "\tNon-initialized table entry");
             return null;
         }
 
         // write to readOnly page
         if (entry.readOnly && isWrite) {
+            Lib.debug(dbgProcess, "\tWrite to read-only page");
             return null;
         }
         // set page to used
@@ -312,7 +321,6 @@ public class UserProcess {
         // if write, set dirty bit true
         if (isWrite)
             entry.dirty = true;
-
         return entry;
     }
 
@@ -416,6 +424,15 @@ public class UserProcess {
         if (!loadSections())
             return false;
 
+        // initialize stack pages
+        for(int i = programPages ; i < programPages + stackPages ; i++) {
+        	pageTable[i] = new TranslationEntry(i, i, true, false,
+                    false, false, false, -1, null);
+        }
+        byte[] memory = Machine.processor().getMemory();
+        Arrays.fill(memory, programPages * pageSize,
+        		(programPages + stackPages) * pageSize, (byte) 0);
+        
         // store arguments after program
         // int entryOffset = (numPages - 1) * pageSize;
         int entryOffset = programPages * pageSize;
@@ -438,7 +455,7 @@ public class UserProcess {
         }
 
         // update page table entry for argument page
-        pageTable[numPages] = new TranslationEntry(numPages, programPages, true, true, false,
+        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, numPages - 1, true, true, false,
                 false, false, -1, null);
 
         return true;
@@ -455,13 +472,13 @@ public class UserProcess {
         // preload program and argument into uncompressed memory. If not fit, throw error.
         if (programPages + 1 > Machine.processor().getNumPhysPages()) {
             coff.close();
-            Lib.debug(dbgProcess, "\tinsufficient physical memory");
+            Lib.debug(dbgProcess, "\tinsufficient uncompressed memory");
             return false;
         }
 
         // initialize first programPages entries in page table. vpn = ppn
         for (int i = 0; i < programPages; i++) {
-            pageTable[i] = new TranslationEntry(i, i, true, false,
+            pageTable[i] = new TranslationEntry(i, i, true, true,
                     false, false, false, -1, null);
         }
 
@@ -695,10 +712,25 @@ public class UserProcess {
      * @return the value to be returned to the user.
      */
     public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
+    	Lib.debug(dbgProcess, String.format("handle syscall %d args: %d %d %d %d", syscall, a0, a1, a2, a3));
         switch (syscall) {
         case syscallHalt:
             return handleHalt();
-
+        case syscallWrite:
+        	int fd = a0;
+        	int startAddr = a1;
+        	int count = a2;
+        	if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
+        		byte[] memory = Machine.processor().getMemory();
+        		for (int i = 0 ; i < count ; i ++) {
+        			UserKernel.console.writeByte(memory[startAddr + i]);
+        		}
+        		return count;
+        	} else {
+        		Lib.assertNotReached("Cannot handle write system call.");
+        	}
+        case syscallExit:
+        	return handleHalt();
         default:
             Lib.debug(dbgProcess, "Unknown syscall " + syscall);
             Lib.assertNotReached("Unknown system call!");
@@ -746,8 +778,9 @@ public class UserProcess {
         }
     }
 
-    private Boolean handlePageFault(int vpn) throws IOException, DataFormatException {
-        // Assume program is preloaded in uncompressed memory
+    private Boolean handlePageFault(int badVAddr) throws IOException, DataFormatException {
+    	// Assume program is preloaded in uncompressed memory
+    	int vpn = badVAddr / pageSize;
 
         if (pageTable == null || vpn >= pageTable.length) {
             // error
@@ -908,6 +941,8 @@ public class UserProcess {
             readVirtualMemory(Processor.makeAddress(v, 0), compressBuf, offset, pageSize);
             offset += pageSize;
         }
+        // (TODO) check swap-out pages dirty bit. if true, write back. Maybe not needed for stack
+
         // (TODO) update page status for swapped-out pages
 
         // Compress swapped-out pages
@@ -932,6 +967,10 @@ public class UserProcess {
 
         return swapoutCMB;
     }
+    
+    public static final int STDIN_FILENO = 0;
+    public static final int STDOUT_FILENO = 1;
+    public static final int STDERR_FILENO = 2;
 
     /** The program being run by this process. */
     protected Coff coff;
