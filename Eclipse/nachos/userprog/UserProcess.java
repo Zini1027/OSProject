@@ -3,6 +3,7 @@ package nachos.userprog;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.zip.DataFormatException;
 
@@ -33,10 +34,7 @@ public class UserProcess {
      * Allocate a new process.
      */
     public UserProcess() {
-        int numPhysPages = Machine.processor().getNumPhysPages();
-
         pageTable = new TranslationEntry[numVirtualPages];
-
     }
 
     /**
@@ -388,6 +386,8 @@ public class UserProcess {
             numPages += section.getLength();
         }
 
+        programPages = numPages;
+
         // make sure the argv array will fit in one page
         byte[][] argv = new byte[args.length][];
         int argsSize = 0;
@@ -416,8 +416,9 @@ public class UserProcess {
         if (!loadSections())
             return false;
 
-        // store arguments in last page
-        int entryOffset = (numPages - 1) * pageSize;
+        // store arguments after program
+        // int entryOffset = (numPages - 1) * pageSize;
+        int entryOffset = programPages * pageSize;
         int stringOffset = entryOffset + args.length * 4;
 
         this.argc = args.length;
@@ -436,6 +437,10 @@ public class UserProcess {
             stringOffset += 1;
         }
 
+        // update page table entry for argument page
+        pageTable[numPages] = new TranslationEntry(numPages, programPages, true, true, false,
+                false, false, -1, null);
+
         return true;
     }
 
@@ -447,15 +452,15 @@ public class UserProcess {
      * @return <tt>true</tt> if the sections were successfully loaded.
      */
     protected boolean loadSections() {
-        if (numPages > Machine.processor().getNumPhysPages()) {
+        // preload program and argument into uncompressed memory. If not fit, throw error.
+        if (programPages + 1 > Machine.processor().getNumPhysPages()) {
             coff.close();
             Lib.debug(dbgProcess, "\tinsufficient physical memory");
             return false;
         }
 
-        // initialize first numPages entries in page table
-        // put code, stack, and argument in uncompressed memory
-        for (int i = 0; i < numPages; i++) {
+        // initialize first programPages entries in page table. vpn = ppn
+        for (int i = 0; i < programPages; i++) {
             pageTable[i] = new TranslationEntry(i, i, true, false,
                     false, false, false, -1, null);
         }
@@ -469,20 +474,12 @@ public class UserProcess {
 
             for (int i = 0; i < section.getLength(); i++) {
                 int vpn = section.getFirstVPN() + i;
-                int ppn = 0; // (TODO) get it from memory allocation function
-                pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section
-                        .isReadOnly(), false, false, false, -1, null);
+                pageTable[vpn].readOnly = section.isReadOnly();
                 // load page to physical memory
                 section.loadPage(i, pageTable[vpn].ppn);
             }
         }
 
-        // allocate memory for stack and arguments
-        for (int i = numPages - stackPages - 1; i < numPages; i++) {
-            int ppn = 0; // (TODO) get it from memory allocation function
-            pageTable[i] = new TranslationEntry(i, ppn, true, false, false,
-                    false, false, -1, null);
-        }
         return true;
     }
 
@@ -759,9 +756,9 @@ public class UserProcess {
 
         CompressMemBlock swapoutCMB, swapinCMB;
         List<Integer> swapoutVPNs, swapinVPNs;
-        int swapoutVPN, swapinVPN, availPPN;
+        int swapoutVPN, swapinVPN, availPPN = 0;
 
-        // (TODO) if page fault in compression section
+        // if page fault in compression section
         // 1. load compressed block to decompress-buffer, update page status (make page available
         // for allocating)
         // 2. call decompression function on decompress-buffer
@@ -810,26 +807,30 @@ public class UserProcess {
                         decompressedData, offsetInBlock * pageSize, pageSize);
 
                 // update page table entry for swap-out page
-                pageTable[swapoutVPN].ppn = -1;
-                pageTable[swapoutVPN].valid = false;
-                pageTable[swapoutVPN].dirty = false;
-                pageTable[swapoutVPN].used = false;
-                pageTable[swapoutVPN].compressed = true;
-                pageTable[swapoutVPN].compressOffset = offsetInBlock;
-                pageTable[swapoutVPN].compressMemBlock = swapoutCMB;
+                TranslationEntry swapoutEntry = pageTable[swapoutVPN];
+                // pageTable[swapoutVPN] = new TranslationEntry(swapoutVPN, -1, false,
+                // swapoutEntry.readOnly, false, false, true, offsetInBlock, swapoutCMB);
+                swapoutEntry.ppn = -1;
+                swapoutEntry.valid = false;
+                swapoutEntry.dirty = false;
+                swapoutEntry.used = false;
+                swapoutEntry.compressed = true;
+                swapoutEntry.compressOffset = offsetInBlock;
+                swapoutEntry.compressMemBlock = swapoutCMB;
 
                 // update page table entry for swap-in page
-                pageTable[swapinVPN].ppn = availPPN;
-                pageTable[swapoutVPN].valid = true;
-                pageTable[swapoutVPN].dirty = false;
-                pageTable[swapoutVPN].used = true;
-                pageTable[swapoutVPN].compressed = false;
-                pageTable[swapoutVPN].compressOffset = -1;
-                pageTable[swapoutVPN].compressMemBlock = null;
+                TranslationEntry swapinEntry = pageTable[swapinVPN];
+                swapinEntry.ppn = availPPN;
+                swapinEntry.valid = true;
+                swapinEntry.dirty = false;
+                swapinEntry.used = true;
+                swapinEntry.compressed = false;
+                swapinEntry.compressOffset = -1;
+                swapinEntry.compressMemBlock = null;
             }
         }
 
-        // (TODO)if page fault in stack region and not create yet
+        // if page fault in stack region and not create yet
         // 1. Call Mem allocate function, find a least used swap-out page (maybe 4 pages)
         // 2. load swap-out page to compress-buffer, update page status
         // 3. call compress function on compress-buffer
@@ -838,12 +839,57 @@ public class UserProcess {
         // 5. put compressed swap-out page in compress memory
         // 6. Initialize new allocated stack page with zero
         // 7. update page table for both swap-out page and swap-in page
-        if (pageTable[vpn] == null) {
+        if (pageTable[vpn] == null || (!pageTable[vpn].valid && !pageTable[vpn].compressed)) {
+            byte[] zero = new byte[pageSize];
+            Arrays.fill(zero, (byte) 0);
+
+            // check uncompressed memory first, call mem allocation. if there is unused page, return
+            // ppn.
+            boolean hasUnusedPage = true;
+            if (hasUnusedPage) {
+                // initialize stack page with all 0
+                writeVirtualMemory(Processor.makeAddress(availPPN, 0), zero, 0, pageSize);
+                // update page table
+                pageTable[vpn].ppn = availPPN;
+                pageTable[vpn].valid = true;
+                pageTable[vpn].readOnly = false;
+                pageTable[vpn].dirty = true;
+                pageTable[vpn].used = true;
+                pageTable[vpn].compressed = false;
+                pageTable[vpn].compressOffset = -1;
+                pageTable[vpn].compressMemBlock = null;
+            }
+
             // call mem allocation function, find swap-out pages
             swapoutCMB = pageFaultHelper(compressedBlockPages);
+            swapoutVPNs = swapoutCMB.vpnList;
+            // assign the first swap-out page to stack page
+            writeVirtualMemory(Processor.makeAddress(swapoutVPNs.get(0), 0), zero, 0, pageSize);
+            // update stack page entry in page table
+            pageTable[vpn].ppn = pageTable[swapoutVPNs.get(0)].ppn;
+            pageTable[vpn].valid = true;
+            pageTable[vpn].readOnly = false;
+            pageTable[vpn].dirty = true;
+            pageTable[vpn].used = true;
+            pageTable[vpn].compressed = false;
+            pageTable[vpn].compressOffset = -1;
+            pageTable[vpn].compressMemBlock = null;
 
-            // initialize
-
+            // update page table entries for swap-out pages
+            for (int offsetInBlock = 0; offsetInBlock < swapoutVPNs.size(); offsetInBlock++) {
+                swapoutVPN = swapoutVPNs.get(offsetInBlock);
+                // update page table entry for swap-out page
+                TranslationEntry swapoutEntry = pageTable[swapoutVPN];
+                // pageTable[swapoutVPN] = new TranslationEntry(swapoutVPN, -1, false,
+                // swapoutEntry.readOnly, false, false, true, offsetInBlock, swapoutCMB);
+                swapoutEntry.ppn = -1;
+                swapoutEntry.valid = false;
+                swapoutEntry.dirty = false;
+                swapoutEntry.used = false;
+                swapoutEntry.compressed = true;
+                swapoutEntry.compressOffset = offsetInBlock;
+                swapoutEntry.compressMemBlock = swapoutCMB;
+            }
         }
         return true;
     }
@@ -894,6 +940,8 @@ public class UserProcess {
     protected TranslationEntry[] pageTable;
     /** The number of contiguous pages occupied by the program. */
     protected int numPages;
+
+    protected int programPages;
 
     /** The number of pages in the program's stack. */
     protected final int stackPages = 8;
