@@ -2,9 +2,9 @@
 
 package nachos.machine;
 
-import nachos.security.Privilege;
 import java.util.ArrayList;
-import java.util.List;
+
+import nachos.security.Privilege;
 
 /**
  * The <tt>Processor</tt> class simulates a MIPS processor that supports a subset of the R3000
@@ -232,6 +232,28 @@ public final class Processor {
     }
 
     /**
+     * return the number of pages of compressed memory section
+     * */
+    public int getNumCompressedPages() {
+        return numPhysPages / (memoryDivideRatio + 1);
+    }
+
+    /**
+     * return the number of pages of uncompressed memory section uncompressed memory section
+     * starting at ppn = 0
+     * */
+    public int getNumUncompressedPages() {
+        return numPhysPages - getNumCompressedPages();
+    }
+
+    /**
+     * return the starting physical page number of compressed memory section
+     * */
+    public int getCompressMemStartingPPN() {
+        return getNumUncompressedPages();
+    }
+
+    /**
      * Return a reference to the physical memory array. The size of this array is
      * <tt>pageSize * getNumPhysPages()</tt>.
      *
@@ -279,32 +301,36 @@ public final class Processor {
     public static int offsetFromAddress(int address) {
         return (int) ((address & 0xFFFFFFFFL) % pageSize);
     }
-    
-    public  ArrayList<Integer> findVictim(int victimNum) {
-    	ArrayList<Integer> victims = new ArrayList<Integer>();
 
-    	int i = 0;
-    	while(victims.size() < victimNum && i < translations.length) {
-    		if(!translations[i].used && !translations[i].dirty) victims.add(i);
-    		i++;
-    	}
-    	i = 0;
-    	while(victims.size() < victimNum && i < translations.length) {
-    		if(!translations[i].used && translations[i].dirty) victims.add(i);
-    		i++;
-    	}
-    	i = 0;
-    	while(victims.size() < victimNum && i < translations.length) {
-    		if(translations[i].used && !translations[i].dirty) victims.add(i);
-    		i++;
-    	}
-    	i = 0;
-    	while(victims.size() < victimNum && i < translations.length) {
-    		if(translations[i].used && translations[i].dirty) victims.add(i);
-    		i++;
-    	}
+    public ArrayList<Integer> findVictim(int victimNum) {
+        ArrayList<Integer> victims = new ArrayList<Integer>();
 
-    	return victims;
+        int i = 0;
+        while (victims.size() < victimNum && i < translations.length) {
+            if (!translations[i].used && !translations[i].dirty)
+                victims.add(i);
+            i++;
+        }
+        i = 0;
+        while (victims.size() < victimNum && i < translations.length) {
+            if (!translations[i].used && translations[i].dirty)
+                victims.add(i);
+            i++;
+        }
+        i = 0;
+        while (victims.size() < victimNum && i < translations.length) {
+            if (translations[i].used && !translations[i].dirty)
+                victims.add(i);
+            i++;
+        }
+        i = 0;
+        while (victims.size() < victimNum && i < translations.length) {
+            if (translations[i].used && translations[i].dirty)
+                victims.add(i);
+            i++;
+        }
+
+        return victims;
     }
 
     private void finishLoad() {
@@ -598,6 +624,9 @@ public final class Processor {
     private int numPhysPages;
     /** Main memory for user programs. */
     private byte[] mainMemory;
+
+    /** uncompressedMemSize : CompressedMemSize */
+    private int memoryDivideRatio = 1;
 
     /** The kernel exception handler, called on every user exception. */
     private Runnable exceptionHandler = null;
