@@ -11,5 +11,5 @@ onexit () {
 OLDSTTYSTATE=`stty -g`
 trap onexit 0
 stty -icanon min 1 -echo
-java nachos.machine.Machine -Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=1044 $*
+java nachos.machine.Machine $*
 
