@@ -707,10 +707,25 @@ public class UserProcess {
      * @return the value to be returned to the user.
      */
     public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
+    	Lib.debug(dbgProcess, String.format("handle syscall %d args: %d %d %d %d", syscall, a0, a1, a2, a3));
         switch (syscall) {
         case syscallHalt:
             return handleHalt();
-
+        case syscallWrite:
+        	int fd = a0;
+        	int startAddr = a1;
+        	int count = a2;
+        	if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
+        		byte[] memory = Machine.processor().getMemory();
+        		for (int i = 0 ; i < count ; i ++) {
+        			UserKernel.console.writeByte(memory[startAddr + i]);
+        		}
+        		return count;
+        	} else {
+        		Lib.assertNotReached("Cannot handle write system call.");
+        	}
+        case syscallExit:
+        	return handleHalt();
         default:
             Lib.debug(dbgProcess, "Unknown syscall " + syscall);
             Lib.assertNotReached("Unknown system call!");
@@ -945,6 +960,10 @@ public class UserProcess {
 
         return swapoutCMB;
     }
+    
+    public static final int STDIN_FILENO = 0;
+    public static final int STDOUT_FILENO = 1;
+    public static final int STDERR_FILENO = 2;
 
     /** The program being run by this process. */
     protected Coff coff;
