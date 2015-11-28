@@ -419,6 +419,15 @@ public class UserProcess {
         if (!loadSections())
             return false;
 
+        // initialize stack pages
+        for(int i = programPages ; i < programPages + stackPages ; i++) {
+        	pageTable[i] = new TranslationEntry(i, i, true, false,
+                    false, false, false, -1, null);
+        }
+        byte[] memory = Machine.processor().getMemory();
+        Arrays.fill(memory, programPages * pageSize,
+        		(programPages + stackPages) * pageSize, (byte) 0);
+        
         // store arguments after program
         // int entryOffset = (numPages - 1) * pageSize;
         int entryOffset = programPages * pageSize;
@@ -441,7 +450,7 @@ public class UserProcess {
         }
 
         // update page table entry for argument page
-        pageTable[numPages] = new TranslationEntry(numPages, programPages, true, true, false,
+        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, numPages - 1, true, true, false,
                 false, false, -1, null);
 
         return true;
@@ -464,7 +473,7 @@ public class UserProcess {
 
         // initialize first programPages entries in page table. vpn = ppn
         for (int i = 0; i < programPages; i++) {
-            pageTable[i] = new TranslationEntry(i, i, true, false,
+            pageTable[i] = new TranslationEntry(i, i, true, true,
                     false, false, false, -1, null);
         }
 
@@ -749,8 +758,9 @@ public class UserProcess {
         }
     }
 
-    private Boolean handlePageFault(int vpn) throws IOException, DataFormatException {
-        // Assume program is preloaded in uncompressed memory
+    private Boolean handlePageFault(int badVAddr) throws IOException, DataFormatException {
+    	// Assume program is preloaded in uncompressed memory
+    	int vpn = badVAddr / pageSize;
 
         if (pageTable == null || vpn >= pageTable.length) {
             // error
