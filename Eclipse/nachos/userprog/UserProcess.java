@@ -1054,7 +1054,7 @@ public class UserProcess {
     // leave some empty pages in both uncompressed and compressed memory for initialization
     private static final int numReservedPages = 4;
 
-    // starting paddr of compressed memory
+    // starting virtual page of compressed memory
     private static int compressMemStartPage = numPhysPages / (memoryDivideRatio + 1);
 
     // compressed memory pages
