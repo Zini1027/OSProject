@@ -115,7 +115,7 @@ public class UserKernel extends ThreadedKernel {
         UserProcess process = UserProcess.newUserProcess();
 
         String shellProgram = Machine.getShellProgramName();
-        Lib.assertTrue(process.execute(shellProgram, Machine.getShellProgramArguements()));
+        Lib.assertTrue(process.execute(shellProgram, Machine.getShellProgramArguments()));
 
         KThread.currentThread().finish();
     }
