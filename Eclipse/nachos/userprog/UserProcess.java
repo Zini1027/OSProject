@@ -721,9 +721,12 @@ public class UserProcess {
             int startAddr = a1;
             int count = a2;
             if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
-                byte[] memory = Machine.processor().getMemory();
+                
+                byte[] buf = new byte[count];
+                readVirtualMemory(startAddr, buf);
+                
                 for (int i = 0; i < count; i++) {
-                    UserKernel.console.writeByte(memory[startAddr + i]);
+                    UserKernel.console.writeByte(buf[i]);
                 }
                 return count;
             } else {
