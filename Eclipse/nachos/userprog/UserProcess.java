@@ -777,10 +777,61 @@ public class UserProcess {
         }
     }
 
+    private String printPhysMemStatus() {
+    	StringBuffer sb = new StringBuffer();
+    	sb.append("-----------\n");
+    	String[] physMemStatus = new String[numPhysPages];
+    	for (TranslationEntry entry : pageTable) {
+    		if (entry == null) {
+    			continue;
+    		}
+    		if (entry.valid) {
+    			Lib.assertTrue(physMemStatus[entry.ppn] == null, "phys page " + entry.ppn + " is used by more than one vpn!");
+    			physMemStatus[entry.ppn] = "[uncomp] Used by vpn " + entry.vpn;
+    		} else {
+    			Lib.assertTrue(entry.compressed && entry.compressMemBlock != null, "vpn " + entry.vpn + " is not valid and not compressed!");
+    			int physPages = entry.compressMemBlock.compressedByte % pageSize == 0 ? entry.compressMemBlock.compressedByte / pageSize :
+    				entry.compressMemBlock.compressedByte / pageSize + 1;
+    			for (int i = 0 ; i < physPages ; i++) {
+    				if (physMemStatus[entry.compressMemBlock.startPPN + i] == null) {
+    					physMemStatus[entry.compressMemBlock.startPPN + i] = "[comp]   Should be used by vpns: "
+    								+ entry.compressMemBlock.vpnList.toString() + " Actually used by vpns: " + entry.vpn;
+    				} else {
+    					physMemStatus[entry.compressMemBlock.startPPN + i] += " " + entry.vpn;
+    				}
+    			}
+    		}
+    	}
+    	for (int i = 0 ; i < numPhysPages ; i++) {
+    		sb.append(i+"\t");
+    		String status = physMemStatus[i];
+    		if (status == null) {
+    			sb.append("Not used.");
+    		} else {
+    			sb.append(status);
+    		}
+    		sb.append("\n");
+    	}
+    	sb.append("-----------\n");
+    	return sb.toString();
+    }
+    
+    private String printPageTable() {
+    	StringBuffer sb = new StringBuffer();
+    	sb.append("==========\n");
+    	for (TranslationEntry entry : pageTable) {
+    		sb.append(entry + "\n");
+    	}
+    	sb.append("==========\n"); 
+    	return sb.toString();
+    }
+    
     private Boolean handlePageFault(int badVAddr) throws IOException, DataFormatException {
         // Assume program is preloaded in uncompressed memory
         int vpn = badVAddr / pageSize;
-
+        Lib.debug(dbgProcess, "*****************************\nHandle page fault for vpn " + vpn);
+        Lib.debug(dbgProcess, "Current page table:\n" + printPageTable());
+        Lib.debug(dbgProcess, "Current physical mem:\n" + printPhysMemStatus());
         if (pageTable == null || vpn >= pageTable.length) {
             // error
             Lib.debug(dbgProcess, "Page Table not exist or VPN out of range");
@@ -977,7 +1028,6 @@ public class UserProcess {
     public CompressMemBlock pageFaultHelper(int pagesToAllocate) throws IOException {
         // call Mem allocate function, find pages to swap out, return a list of vpns
         List<Integer> swapoutVPNs = Machine.processor().findVictim(pagesToAllocate);
-        Lib.assertTrue(pagesToAllocate == swapoutVPNs.size(), "Cannot find " + swapoutVPNs + " virtual pages to swap out");
         Lib.debug(dbgProcess, "Swap out these VPNs: " + swapoutVPNs.toString());
         // if find allocated pages, swap-out
         byte[] compressBuf = new byte[pagesToAllocate * pageSize];
@@ -1032,7 +1082,7 @@ public class UserProcess {
     protected int programPages;
 
     /** The number of pages in the program's stack. */
-    protected final int stackPages = 128;
+    protected final int stackPages = 8;
 
     private int initialPC, initialSP;
     private int argc, argv;
@@ -1044,7 +1094,7 @@ public class UserProcess {
 
     private static int numPhysPages = Machine.processor().getNumPhysPages();
 
-    private static int numVirtualPages = 256;
+    private static int numVirtualPages = 16;
 
     // uncompressed memory section : compressed memory section
     private static final int memoryDivideRatio = 1;

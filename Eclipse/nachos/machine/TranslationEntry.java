@@ -6,6 +6,12 @@ package nachos.machine;
  * A single translation between a virtual page and a physical page.
  */
 public final class TranslationEntry {
+	
+	public String toString() {
+		return String.format("vpn: %d ppn: %d valid: %b compress: %b used: %b dirty: %b",
+				vpn, ppn, valid, compressed, used, dirty);
+	}
+	
     /**
      * Allocate a new invalid translation entry.
      */
