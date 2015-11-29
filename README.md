@@ -13,9 +13,10 @@
 ## Run test coff file in nachos
 ```bash
 cd Eclipse/nachos/proj_mem_comp/
-nachos -x halt.coff -d a
+make
+nachos -x echo.coff -a hello -a world [-d a]
 ```
-* '-d a' is for debugging
+* '-d a' is for debugging (optional)
 * make sure nachos is in your PATH
 
 ## Run & debug nachos in Eclipse
