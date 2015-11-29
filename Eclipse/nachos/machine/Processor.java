@@ -5,6 +5,7 @@ package nachos.machine;
 import java.util.ArrayList;
 
 import nachos.security.Privilege;
+import nachos.userprog.UserProcess;
 
 /**
  * The <tt>Processor</tt> class simulates a MIPS processor that supports a subset of the R3000
@@ -306,25 +307,25 @@ public final class Processor {
         ArrayList<Integer> victims = new ArrayList<Integer>();
 
         int i = 0;
-        while (victims.size() < victimNum && i < numPhysPages) {
+        while (victims.size() < victimNum && i < UserProcess.compressMemStartPage) {
             if (translations[i].valid && !translations[i].used && !translations[i].dirty)
                 victims.add(i);
             i++;
         }
         i = 0;
-        while (victims.size() < victimNum && i < numPhysPages) {
+        while (victims.size() < victimNum && i < UserProcess.compressMemStartPage) {
             if (translations[i].valid && !translations[i].used && translations[i].dirty)
                 victims.add(i);
             i++;
         }
         i = 0;
-        while (victims.size() < victimNum && i < numPhysPages) {
+        while (victims.size() < victimNum && i < UserProcess.compressMemStartPage) {
             if (translations[i].valid && translations[i].used && !translations[i].dirty)
                 victims.add(i);
             i++;
         }
         i = 0;
-        while (victims.size() < victimNum && i < numPhysPages) {
+        while (victims.size() < victimNum && i < UserProcess.compressMemStartPage) {
             if (translations[i].valid && translations[i].used && translations[i].dirty)
                 victims.add(i);
             i++;

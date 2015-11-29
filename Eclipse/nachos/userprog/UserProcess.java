@@ -977,6 +977,7 @@ public class UserProcess {
     public CompressMemBlock pageFaultHelper(int pagesToAllocate) throws IOException {
         // call Mem allocate function, find pages to swap out, return a list of vpns
         List<Integer> swapoutVPNs = Machine.processor().findVictim(pagesToAllocate);
+        Lib.assertTrue(pagesToAllocate == swapoutVPNs.size(), "Cannot find " + swapoutVPNs + " virtual pages to swap out");
         Lib.debug(dbgProcess, "Swap out these VPNs: " + swapoutVPNs.toString());
         // if find allocated pages, swap-out
         byte[] compressBuf = new byte[pagesToAllocate * pageSize];
@@ -1055,10 +1056,10 @@ public class UserProcess {
     private static final int numReservedPages = 4;
 
     // starting physical page of compressed memory
-    private static int compressMemStartPage = numPhysPages / (memoryDivideRatio + 1);
+    public static final int compressMemStartPage = numPhysPages / (memoryDivideRatio + 1);
 
     // compressed memory pages
-    private static int pagesCompressMem = numPhysPages - compressMemStartPage;
+    public static final int pagesCompressMem = numPhysPages - compressMemStartPage;
 
     private MemoryUsage memoryUsage;
 }
