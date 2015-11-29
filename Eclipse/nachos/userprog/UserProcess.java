@@ -817,7 +817,7 @@ public class UserProcess {
     	return sb.toString();
     }
     
-    private String printPageTable() {
+    public static String printPageTable(TranslationEntry[] pageTable) {
     	StringBuffer sb = new StringBuffer();
     	sb.append("==========\n");
     	for (TranslationEntry entry : pageTable) {
@@ -831,7 +831,7 @@ public class UserProcess {
         // Assume program is preloaded in uncompressed memory
         int vpn = badVAddr / pageSize;
         Lib.debug(dbgProcess, "*****************************\nHandle page fault for vpn " + vpn);
-        Lib.debug(dbgProcess, "Current page table:\n" + printPageTable());
+        Lib.debug(dbgProcess, "Current page table:\n" + printPageTable(pageTable));
         Lib.debug(dbgProcess, "Current physical mem:\n" + printPhysMemStatus());
         if (pageTable == null || vpn >= pageTable.length) {
             // error
@@ -871,8 +871,8 @@ public class UserProcess {
                 writeVirtualMemory(Processor.makeAddress(vpn, 0), zero, 0, pageSize);
                 // update page table
                 pageTable[vpn].readOnly = false;
-                pageTable[vpn].dirty = true; // true or false ?
-                pageTable[vpn].used = true; // true or false ?
+                pageTable[vpn].dirty = false; // true or false ?
+                pageTable[vpn].used = false; // true or false ?
                 pageTable[vpn].compressed = false;
                 pageTable[vpn].compressOffset = -1;
                 pageTable[vpn].compressMemBlock = null;
@@ -957,6 +957,7 @@ public class UserProcess {
 
             swapinVPNs = swapinCMB.vpnList;
             int offsetInBlock = 0;
+            swapoutCMB = pageFaultHelper(pageToAllocate - findFreePages.size());
             // if there are free space in uncompressed memory, use free space first
             if (!findFreePages.isEmpty()) {
                 // initialize page table entries first
@@ -970,10 +971,9 @@ public class UserProcess {
                     pageTable[swapinVPNs.get(i)].compressOffset = -1;
                     pageTable[swapinVPNs.get(i)].compressMemBlock = null;
 
-                    offsetInBlock = i;
                     writeVirtualMemory(Processor.makeAddress(swapinVPNs.get(i), 0),
                             decompressedData, offsetInBlock * pageSize, pageSize);
-
+                    offsetInBlock++;
                     // update page usage
                     memoryUsage.setPage(findFreePages.get(i));
                 }
@@ -985,13 +985,12 @@ public class UserProcess {
             }
 
             // Else, call pageFaultHelper to deals with swap-out data
-            swapoutCMB = pageFaultHelper(pageToAllocate - findFreePages.size());
+            
             swapoutVPNs = swapoutCMB.vpnList;
 
             // write swap-in data to uncompressed memory
             swapinVPNs = swapinCMB.vpnList;
             for (int i = 0; i < swapoutVPNs.size(); i++) {
-                offsetInBlock++;
                 swapoutVPN = swapoutVPNs.get(i);
                 swapinVPN = swapinVPNs.get(offsetInBlock);
                 allocatedPPN = pageTable[swapoutVPN].ppn;
@@ -1023,6 +1022,8 @@ public class UserProcess {
                 swapinEntry.compressed = false;
                 swapinEntry.compressOffset = -1;
                 swapinEntry.compressMemBlock = null;
+                
+                offsetInBlock++;
             }
         }
 
@@ -1035,8 +1036,8 @@ public class UserProcess {
     public CompressMemBlock pageFaultHelper(int pagesToAllocate) throws IOException {
         // call Mem allocate function, find pages to swap out, return a list of vpns
         List<Integer> swapoutVPNs = Machine.processor().findVictim(pagesToAllocate);
-        Lib.assertTrue(pagesToAllocate == swapoutVPNs.size(), "Cannot find " + swapoutVPNs + " virtual pages to swap out");
-        Lib.debug(dbgProcess, "Swap out these VPNs: " + swapoutVPNs.toString());
+        // Lib.assertTrue(pagesToAllocate == swapoutVPNs.size(), "Cannot find " + swapoutVPNs + " virtual pages to swap out");
+        Lib.debug(dbgProcess, "pagesToAllocate: " +pagesToAllocate+" Swap out these VPNs: " + swapoutVPNs.toString());
         // if find allocated pages, swap-out
         byte[] compressBuf = new byte[pagesToAllocate * pageSize];
         int offset = 0;

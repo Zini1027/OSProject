@@ -304,6 +304,7 @@ public final class Processor {
     }
 
     public ArrayList<Integer> findVictim(int victimNum) {
+    	// System.out.println("page table in findVictim:\n" + UserProcess.printPageTable(translations));
         ArrayList<Integer> victims = new ArrayList<Integer>();
 
         int i = 0;
