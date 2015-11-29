@@ -2,7 +2,6 @@ package nachos.userprog;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.zip.DataFormatException;
@@ -12,6 +11,7 @@ import nachos.machine.CoffSection;
 import nachos.machine.CompressMemBlock;
 import nachos.machine.Lib;
 import nachos.machine.Machine;
+import nachos.machine.MemoryUsage;
 import nachos.machine.OpenFile;
 import nachos.machine.Processor;
 import nachos.machine.TranslationEntry;
@@ -35,6 +35,7 @@ public class UserProcess {
      */
     public UserProcess() {
         pageTable = new TranslationEntry[numVirtualPages];
+        memoryUsage = new MemoryUsage();
     }
 
     /**
@@ -793,7 +794,7 @@ public class UserProcess {
 
         CompressMemBlock swapoutCMB, swapinCMB;
         List<Integer> swapoutVPNs, swapinVPNs;
-        int swapoutVPN, swapinVPN, availPPN = 0;
+        int swapoutVPN, swapinVPN, allocatedPPN = 0;
 
         // if page fault in stack region and not create yet
         // 1. Call Mem allocate function, find a least used swap-out page (maybe 4 pages)
@@ -805,31 +806,40 @@ public class UserProcess {
         // 6. Initialize new allocated stack page with zero
         // 7. update page table for both swap-out page and swap-in page
         if (pageTable[vpn] == null || (!pageTable[vpn].valid && !pageTable[vpn].compressed)) {
+            // create page table entry
+            pageTable[vpn] = new TranslationEntry(vpn, -1, false, false, false, false, false, -1,
+                    null);
             byte[] zero = new byte[pageSize];
             Arrays.fill(zero, (byte) 0);
 
-            // (TODO)check uncompressed memory first, call mem allocation. if there is unused page,
+            // check uncompressed memory first, call mem allocation. if there is unused page,
             // return ppn.
-            boolean hasUnusedPage = true;
-            if (hasUnusedPage) {
-                // initialize stack page with all 0
-                writeVirtualMemory(Processor.makeAddress(availPPN, 0), zero, 0, pageSize);
-                // update page table
-                pageTable[vpn].ppn = availPPN;
+            allocatedPPN = memoryUsage.allocatePageInUncomp();
+
+            // There is free page
+            if (allocatedPPN != -1) {
+                pageTable[vpn].ppn = allocatedPPN;
                 pageTable[vpn].valid = true;
+                // initialize stack page with all 0
+                writeVirtualMemory(Processor.makeAddress(vpn, 0), zero, 0, pageSize);
+                // update page table
                 pageTable[vpn].readOnly = false;
-                pageTable[vpn].dirty = true;
-                pageTable[vpn].used = true;
+                pageTable[vpn].dirty = true; // true or false ?
+                pageTable[vpn].used = true; // true or false ?
                 pageTable[vpn].compressed = false;
                 pageTable[vpn].compressOffset = -1;
                 pageTable[vpn].compressMemBlock = null;
+
+                return true;
             }
 
-            // call mem allocation function, find swap-out pages
+            // If there is no free page in uncompressed memory, pageFaultHelper deals with swap-out
             swapoutCMB = pageFaultHelper(compressedBlockPages);
             swapoutVPNs = swapoutCMB.vpnList;
             // assign the first swap-out page to stack page
             writeVirtualMemory(Processor.makeAddress(swapoutVPNs.get(0), 0), zero, 0, pageSize);
+            // update page status
+            memoryUsage.setPage(pageTable[swapoutVPNs.get(0)].ppn);
             // update stack page entry in page table
             pageTable[vpn].ppn = pageTable[swapoutVPNs.get(0)].ppn;
             pageTable[vpn].valid = true;
@@ -873,13 +883,19 @@ public class UserProcess {
             swapinCMB = pageTable[vpn].compressMemBlock;
 
             // Create a decompress-buffer
-            byte[] decompressBuf = new byte[swapinCMB.compressedByte + 1];
+            byte[] decompressBuf = new byte[swapinCMB.compressedByte];
 
             // load compress block into decompressBuf
             Lib.assertTrue(readCompressMemory(swapinCMB.startPPN, decompressBuf, 0,
                     swapinCMB.compressedByte) == swapinCMB.compressedByte);
 
-            // (TODO) update page status
+            int compressBlockPages = swapinCMB.compressedByte / pageSize
+                    + (swapinCMB.compressedByte % pageSize == 0 ? 0 : 1);
+
+            // update page status
+            for (int i = 0; i < compressBlockPages; i++) {
+                memoryUsage.releasePage(swapinCMB.startPPN + i);
+            }
 
             // decompression
             byte[] decompressedData = MemoryCompression.decompressZLIB(decompressBuf);
@@ -888,6 +904,32 @@ public class UserProcess {
             // Calculate # of physical pages needed after decompression
             int pageToAllocate = (swapinCMB.unCompressedByte / pageSize)
                     + (swapinCMB.unCompressedByte % pageSize == 0 ? 0 : 1);
+
+            // Allocation uncompressed memory
+            List<Integer> findFreePages = memoryUsage.allocateMultiPagesUncomp(pageToAllocate);
+            // if there are enough free space in uncompressed memory, put data in
+            if (findFreePages != null) {
+                swapinVPNs = swapinCMB.vpnList;
+
+                // initialize page table entries first
+                for (int i = 0; i < pageToAllocate; i++) {
+                    pageTable[swapinVPNs.get(i)].ppn = findFreePages.get(i);
+                    pageTable[swapinVPNs.get(i)].valid = true;
+                    pageTable[swapinVPNs.get(i)].readOnly = false;
+                    pageTable[swapinVPNs.get(i)].used = false;
+                    pageTable[swapinVPNs.get(i)].dirty = false;
+                    pageTable[swapinVPNs.get(i)].compressed = false;
+                    pageTable[swapinVPNs.get(i)].compressOffset = -1;
+                    pageTable[swapinVPNs.get(i)].compressMemBlock = null;
+
+                    writeVirtualMemory(Processor.makeAddress(swapinVPNs.get(i), 0),
+                            decompressedData, i * pageSize, pageSize);
+
+                    // update page usage
+                    memoryUsage.setPage(findFreePages.get(i));
+                }
+                return true;
+            }
 
             // pageFaultHelper deals with swap-out data
             swapoutCMB = pageFaultHelper(pageToAllocate);
@@ -899,11 +941,13 @@ public class UserProcess {
 
                 swapoutVPN = swapoutVPNs.get(offsetInBlock);
                 swapinVPN = swapinVPNs.get(offsetInBlock);
-                availPPN = pageTable[swapoutVPN].ppn;
+                allocatedPPN = pageTable[swapoutVPN].ppn;
 
                 // write one swap-in page to uncompressed memory
                 writeVirtualMemory(Processor.makeAddress(swapoutVPN, 0),
                         decompressedData, offsetInBlock * pageSize, pageSize);
+                // update page status
+                memoryUsage.setPage(pageTable[swapoutVPN].ppn);
 
                 // update page table entry for swap-out page
                 TranslationEntry swapoutEntry = pageTable[swapoutVPN];
@@ -919,7 +963,7 @@ public class UserProcess {
 
                 // update page table entry for swap-in page
                 TranslationEntry swapinEntry = pageTable[swapinVPN];
-                swapinEntry.ppn = availPPN;
+                swapinEntry.ppn = allocatedPPN;
                 swapinEntry.valid = true;
                 swapinEntry.dirty = false;
                 swapinEntry.used = true;
@@ -936,8 +980,8 @@ public class UserProcess {
     // load swap-out pages to compress buffer and do compression
     // allocate swap-out pages in compressed memory, if not find place, throw error.
     public CompressMemBlock pageFaultHelper(int pagesToAllocate) throws IOException {
-        // (TODO) call Mem allocate function, find pages to swap out, return a list of vpns
-        List<Integer> swapoutVPNs = new ArrayList<Integer>();
+        // call Mem allocate function, find pages to swap out, return a list of vpns
+        List<Integer> swapoutVPNs = Machine.processor().findVictim(pagesToAllocate);
 
         // if find allocated pages, swap-out
         byte[] compressBuf = new byte[pagesToAllocate * pageSize];
@@ -945,31 +989,35 @@ public class UserProcess {
         for (Integer v : swapoutVPNs) {
             readVirtualMemory(Processor.makeAddress(v, 0), compressBuf, offset, pageSize);
             offset += pageSize;
+            // update page status
+            memoryUsage.releasePage(pageTable[v].ppn);
         }
-        // (TODO) check swap-out pages dirty bit. if true, write back. Maybe not needed for stack
-
-        // (TODO) update page status for swapped-out pages
 
         // Compress swapped-out pages
         byte[] swapOutData = MemoryCompression.compressZLIB(compressBuf);
 
-        // (TODO) call compressed memory allocation function. If not find, throw not enough
+        // call compressed memory allocation function. If not find, throw not enough
         // memory error; if find, return the starting ppn.
-        boolean allocateInCompressedMem = true;
-        if (!allocateInCompressedMem) {
+        int compressedPagesToAllocate = (swapOutData.length / pageSize)
+                + ((swapOutData.length % pageSize) == 0 ? 0 : 1);
+        int compressedPPN = memoryUsage.allocateCtnPageInComp(compressedPagesToAllocate);
+        if (compressedPPN == -1) {
             Lib.debug(dbgProcess, "Not Enough Compressed Memory");
             return null;
         }
 
         CompressMemBlock swapoutCMB = new CompressMemBlock();
-        swapoutCMB.startPPN = 0;
+        swapoutCMB.startPPN = compressedPPN;
         swapoutCMB.compressedByte = swapOutData.length;
         swapoutCMB.unCompressedByte = compressBuf.length;
         swapoutCMB.setVPNList(swapoutVPNs);
         // write swap-out data to compressed memory
         writeCompressMemory(swapoutCMB.startPPN, swapOutData, 0, swapOutData.length);
-        // (TODO) update page status
 
+        // update page status
+        for (int i = 0; i < compressedPagesToAllocate; i++) {
+            memoryUsage.setPage(compressedPPN + i);
+        }
         return swapoutCMB;
     }
 
@@ -1016,4 +1064,6 @@ public class UserProcess {
 
     // compressed memory pages
     private static int pagesCompressMem = Processor.pageSize - compressMemStartAddr;
+
+    private MemoryUsage memoryUsage;
 }
