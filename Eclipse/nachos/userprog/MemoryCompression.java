@@ -23,8 +23,8 @@ public class MemoryCompression {
         }
         outputStream.close();
         byte[] output = outputStream.toByteArray();
-        System.out.println("Original: " + data.length / 1024 + " Kb");
-        System.out.println("Compressed: " + output.length / 1024 + " Kb");
+        System.out.println("Compress Original: " + data.length + " bytes");
+        System.out.println("Compressed: " + output.length + " bytes");
         return output;
     }
 
@@ -39,7 +39,7 @@ public class MemoryCompression {
         }
         outputStream.close();
         byte[] output = outputStream.toByteArray();
-        System.out.println("Original: " + data.length);
+        System.out.println("Decompress Original: " + data.length);
         System.out.println("Compressed: " + output.length);
         return output;
     }

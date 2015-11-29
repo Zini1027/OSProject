@@ -386,7 +386,7 @@ public final class Machine {
     }
     
     public static String[] getShellProgramArguments() {
-    	shellProgramArguments.add(getShellProgramName());
+    	shellProgramArguments.add(0, getShellProgramName());
     	return shellProgramArguments.toArray(new String[shellProgramArguments.size()]);
     }
 

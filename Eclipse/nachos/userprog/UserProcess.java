@@ -150,7 +150,7 @@ public class UserProcess {
         byte[] memory = Machine.processor().getMemory();
         int firstVPN = Processor.pageFromAddress(vaddr);
         int firstOffset = Processor.offsetFromAddress(vaddr);
-        int lastVPN = Processor.pageFromAddress(vaddr + length);
+        int lastVPN = Processor.pageFromAddress(vaddr + length - 1);
 
         TranslationEntry entry = getPageTableEntry(firstVPN, false);
 
@@ -261,7 +261,7 @@ public class UserProcess {
     public int readCompressMemory(int ppn, byte[] data, int offset,
             int length) {
         Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
-        Lib.assertTrue(ppn >= compressMemStartAddr && ppn <= numPhysPages);
+        Lib.assertTrue(ppn >= compressMemStartPage && ppn <= numPhysPages);
 
         byte[] memory = Machine.processor().getMemory();
 
@@ -287,7 +287,7 @@ public class UserProcess {
     public int writeCompressMemory(int ppn, byte[] data, int offset,
             int length) {
         Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
-        Lib.assertTrue(ppn >= compressMemStartAddr && ppn <= numPhysPages);
+        Lib.assertTrue(ppn >= compressMemStartPage && ppn <= numPhysPages);
 
         byte[] memory = Machine.processor().getMemory();
 
@@ -438,7 +438,7 @@ public class UserProcess {
 
         // Load arguments
         // update page table entry for argument page
-        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, true, false,
+        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, false, false,
                 false, false, -1, null);
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
@@ -452,8 +452,6 @@ public class UserProcess {
             stringOffset += 1;
         }
         // set read-only to true
-        pageTable[numPages - 1].readOnly = true;
-
         pageTable[numPages - 1].readOnly = true;
         memoryUsage.setPage(programPages);
 
@@ -979,7 +977,7 @@ public class UserProcess {
     public CompressMemBlock pageFaultHelper(int pagesToAllocate) throws IOException {
         // call Mem allocate function, find pages to swap out, return a list of vpns
         List<Integer> swapoutVPNs = Machine.processor().findVictim(pagesToAllocate);
-
+        Lib.debug(dbgProcess, "Swap out these VPNs: " + swapoutVPNs.toString());
         // if find allocated pages, swap-out
         byte[] compressBuf = new byte[pagesToAllocate * pageSize];
         int offset = 0;
@@ -1033,7 +1031,7 @@ public class UserProcess {
     protected int programPages;
 
     /** The number of pages in the program's stack. */
-    protected final int stackPages = 8;
+    protected final int stackPages = 128;
 
     private int initialPC, initialSP;
     private int argc, argv;
@@ -1056,11 +1054,11 @@ public class UserProcess {
     // leave some empty pages in both uncompressed and compressed memory for initialization
     private static final int numReservedPages = 4;
 
-    // starting paddr of compressed memory
-    private static int compressMemStartAddr = Processor.pageSize / (memoryDivideRatio + 1);
+    // starting physical page of compressed memory
+    private static int compressMemStartPage = numPhysPages / (memoryDivideRatio + 1);
 
     // compressed memory pages
-    private static int pagesCompressMem = Processor.pageSize - compressMemStartAddr;
+    private static int pagesCompressMem = numPhysPages - compressMemStartPage;
 
     private MemoryUsage memoryUsage;
 }
