@@ -430,7 +430,7 @@ public class UserProcess {
 
         // store arguments after program
         int entryOffset = (numPages - 1) * pageSize;
-        //int entryOffset = programPages * pageSize;
+        // int entryOffset = programPages * pageSize;
         int stringOffset = entryOffset + args.length * 4;
 
         this.argc = args.length;
@@ -438,7 +438,7 @@ public class UserProcess {
 
         // Load arguments
         // update page table entry for argument page
-        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, false, false,
+        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, true, false,
                 false, false, -1, null);
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
@@ -453,6 +453,9 @@ public class UserProcess {
         }
         // set read-only to true
         pageTable[numPages - 1].readOnly = true;
+
+        pageTable[numPages - 1].readOnly = true;
+        memoryUsage.setPage(programPages);
 
         return true;
     }
@@ -487,9 +490,10 @@ public class UserProcess {
 
             for (int i = 0; i < section.getLength(); i++) {
                 int vpn = section.getFirstVPN() + i;
-                pageTable[vpn].readOnly = section.isReadOnly();
                 // load page to physical memory
                 section.loadPage(i, pageTable[vpn].ppn);
+                pageTable[vpn].readOnly = section.isReadOnly();
+                memoryUsage.setPage(pageTable[vpn].ppn);
             }
         }
 
