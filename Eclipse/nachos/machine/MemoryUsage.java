@@ -49,11 +49,7 @@ public class MemoryUsage {
             }
         }
 
-        if (freePages.size() == numPages) {
-            return freePages;
-        } else {
-            return null;
-        }
+        return freePages;
     }
 
     /**
