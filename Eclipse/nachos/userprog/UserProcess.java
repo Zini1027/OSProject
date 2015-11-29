@@ -216,7 +216,7 @@ public class UserProcess {
 
         int firstVPN = Processor.pageFromAddress(vaddr);
         int firstOffset = Processor.offsetFromAddress(vaddr);
-        int lastVPN = Processor.pageFromAddress(vaddr + length);
+        int lastVPN = Processor.pageFromAddress(vaddr + length - 1);
 
         TranslationEntry entry = pageTable[firstVPN];
 
@@ -438,7 +438,7 @@ public class UserProcess {
 
         // Load arguments
         // update page table entry for argument page
-        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, true, false,
+        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, false, false,
                 false, false, -1, null);
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
@@ -451,6 +451,8 @@ public class UserProcess {
             Lib.assertTrue(writeVirtualMemory(stringOffset, new byte[] { 0 }) == 1);
             stringOffset += 1;
         }
+        // set read-only to true
+        pageTable[numPages - 1].readOnly = true;
 
         return true;
     }
