@@ -216,7 +216,7 @@ public class UserProcess {
 
         int firstVPN = Processor.pageFromAddress(vaddr);
         int firstOffset = Processor.offsetFromAddress(vaddr);
-        int lastVPN = Processor.pageFromAddress(vaddr + length);
+        int lastVPN = Processor.pageFromAddress(vaddr + length - 1);
 
         TranslationEntry entry = pageTable[firstVPN];
 
@@ -430,7 +430,7 @@ public class UserProcess {
 
         // store arguments after program
         int entryOffset = (numPages - 1) * pageSize;
-        //int entryOffset = programPages * pageSize;
+        // int entryOffset = programPages * pageSize;
         int stringOffset = entryOffset + args.length * 4;
 
         this.argc = args.length;
@@ -438,8 +438,8 @@ public class UserProcess {
 
         // Load arguments
         // update page table entry for argument page
-        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, true, false,
-                false, false, -1, null);
+        pageTable[numPages - 1] = new TranslationEntry(numPages - 1, programPages, true, false,
+                false, false, false, -1, null);
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
             // write the
@@ -451,6 +451,9 @@ public class UserProcess {
             Lib.assertTrue(writeVirtualMemory(stringOffset, new byte[] { 0 }) == 1);
             stringOffset += 1;
         }
+
+        pageTable[numPages - 1].readOnly = true;
+        memoryUsage.setPage(programPages);
 
         return true;
     }
@@ -485,9 +488,10 @@ public class UserProcess {
 
             for (int i = 0; i < section.getLength(); i++) {
                 int vpn = section.getFirstVPN() + i;
-                pageTable[vpn].readOnly = section.isReadOnly();
                 // load page to physical memory
                 section.loadPage(i, pageTable[vpn].ppn);
+                pageTable[vpn].readOnly = section.isReadOnly();
+                memoryUsage.setPage(pageTable[vpn].ppn);
             }
         }
 
