@@ -307,25 +307,25 @@ public final class Processor {
 
         int i = 0;
         while (victims.size() < victimNum && i < translations.length) {
-            if (!translations[i].used && !translations[i].dirty)
+            if (translations[i].valid && !translations[i].used && !translations[i].dirty)
                 victims.add(i);
             i++;
         }
         i = 0;
         while (victims.size() < victimNum && i < translations.length) {
-            if (!translations[i].used && translations[i].dirty)
+            if (translations[i].valid && !translations[i].used && translations[i].dirty)
                 victims.add(i);
             i++;
         }
         i = 0;
         while (victims.size() < victimNum && i < translations.length) {
-            if (translations[i].used && !translations[i].dirty)
+            if (translations[i].valid && translations[i].used && !translations[i].dirty)
                 victims.add(i);
             i++;
         }
         i = 0;
         while (victims.size() < victimNum && i < translations.length) {
-            if (translations[i].used && translations[i].dirty)
+            if (translations[i].valid && translations[i].used && translations[i].dirty)
                 victims.add(i);
             i++;
         }
