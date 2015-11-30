@@ -12,8 +12,6 @@
 #define SORTSIZE	256
 #define SORTSHIFT	4
 
-int array[SORTSIZE<<SORTSHIFT];
-
 #define	A(i)	(array[(i)<<SORTSHIFT])
 
 void swap(int* x, int* y)
@@ -27,6 +25,7 @@ int
 main()
 {
   int i, j;
+  int array[SORTSIZE<<SORTSHIFT];
   
   printf("sort starts!\n");
   /* first initialize the array, in reverse sorted order */
