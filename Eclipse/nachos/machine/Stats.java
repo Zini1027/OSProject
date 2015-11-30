@@ -18,19 +18,33 @@ public final class Stats {
      * Print out the statistics in this object.
      */
     public void print() {
-	System.out.println("Ticks: total " + totalTicks
-			   + ", kernel " + kernelTicks
-			   + ", user " + userTicks);
-	System.out.println("Disk I/O: reads " + numDiskReads
-			   + ", writes " + numDiskWrites);
-	System.out.println("Console I/O: reads " + numConsoleReads
-			   + ", writes " + numConsoleWrites);
+//	System.out.println("Ticks: total " + totalTicks
+//			   + ", kernel " + kernelTicks
+//			   + ", user " + userTicks);
+//	System.out.println("Disk I/O: reads " + numDiskReads
+//			   + ", writes " + numDiskWrites);
+//	System.out.println("Console I/O: reads " + numConsoleReads
+//			   + ", writes " + numConsoleWrites);
 	System.out.println("Paging: page faults " + numPageFaults
-			   + ", TLB misses " + numTLBMisses);
-	System.out.println("Network I/O: received " + numPacketsReceived
-			   + ", sent " + numPacketsSent);
+			   + ", TLB misses " + numTLBMisses
+			   + ", total memory access: " + numMemoryAccess
+			   + ", memory access per page fault: " + numMemoryAccess/numPageFaults);
+//	System.out.println("Network I/O: received " + numPacketsReceived
+//			   + ", sent " + numPacketsSent);
+	System.out.println("Physical mem pages: " + Machine.processor().getNumPhysPages()
+			   + ", total mem pages in the system " + totalMemPages);
+	System.out.printf("compress alg: %s ratio: %f\n", compressionAlg, (double)totalUnCompressedBytes / totalCompressedBytes);
     }
 
+    public String compressionAlg;
+    public long totalUnCompressedBytes = 0;
+    public long totalCompressedBytes = 0;
+    
+    /**
+     * In both compressed and uncompressed space
+     */
+    public int totalMemPages = 0;
+    
     /**
      * The total amount of simulated time that has passed since Nachos
      * started.
@@ -55,6 +69,7 @@ public final class Stats {
     public int numConsoleWrites = 0;
     /** The total number of page faults that have occurred. */
     public int numPageFaults = 0;
+    public int numMemoryAccess = 0;
     /** The total number of TLB misses that have occurred. */
     public int numTLBMisses = 0;
     /** The total number of packets Nachos has sent to the network. */

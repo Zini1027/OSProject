@@ -2,7 +2,9 @@
 
 package nachos.machine;
 
+import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
 
 import nachos.security.Privilege;
 import nachos.userprog.UserProcess;
@@ -275,7 +277,7 @@ public final class Processor {
      * @return a 32-bit address consisting of the specified page and offset.
      */
     public static int makeAddress(int page, int offset) {
-        Lib.assertTrue(page >= 0 && page < maxPages);
+        Lib.assertTrue(page >= 0 && page < maxPages, "vpn: " + page);
         Lib.assertTrue(offset >= 0 && offset < pageSize);
 
         return (page * pageSize) | offset;
@@ -306,31 +308,41 @@ public final class Processor {
     public ArrayList<Integer> findVictim(int victimNum) {
     	// System.out.println("page table in findVictim:\n" + UserProcess.printPageTable(translations));
         ArrayList<Integer> victims = new ArrayList<Integer>();
-
-        int i = 0;
-        while (victims.size() < victimNum && i < translations.length) {
-            if (translations[i] != null && !translations[i].compressed && translations[i].valid && !translations[i].used && !translations[i].dirty)
-                victims.add(i);
-            i++;
+        List<Integer> randomIndexes = new ArrayList<>();
+        for (int i = 0 ; i < translations.length ; i++) {
+        	randomIndexes.add(i);
         }
-        i = 0;
-        while (victims.size() < victimNum && i < translations.length) {
-            if (translations[i] != null && !translations[i].compressed && translations[i].valid && !translations[i].used && translations[i].dirty)
+        Collections.shuffle(randomIndexes);
+        
+        for (int i : randomIndexes) {
+        	if (victims.size() == victimNum) break;
+        	if (translations[i] != null && !translations[i].compressed && translations[i].valid)
                 victims.add(i);
-            i++;
         }
-        i = 0;
-        while (victims.size() < victimNum && i < translations.length) {
-            if (translations[i] != null && !translations[i].compressed && translations[i].valid && translations[i].used && !translations[i].dirty)
+        
+        /*for (int i : randomIndexes) {
+        	if (victims.size() == victimNum) break;
+        	if (translations[i] != null && !translations[i].compressed && translations[i].valid && !translations[i].used && !translations[i].dirty)
                 victims.add(i);
-            i++;
         }
-        i = 0;
-        while (victims.size() < victimNum && i < translations.length) {
-            if (translations[i] != null && !translations[i].compressed && translations[i].valid && translations[i].used && translations[i].dirty)
+        
+        for (int i : randomIndexes) {
+        	if (victims.size() == victimNum) break;
+        	if (translations[i] != null && !translations[i].compressed && translations[i].valid && !translations[i].used && translations[i].dirty)
                 victims.add(i);
-            i++;
         }
+        
+        for (int i : randomIndexes) {
+        	if (victims.size() == victimNum) break;
+        	if (translations[i] != null && !translations[i].compressed && translations[i].valid && translations[i].used && !translations[i].dirty)
+                victims.add(i);
+        }
+        
+        for (int i : randomIndexes) {
+        	if (victims.size() == victimNum) break;
+        	if (translations[i] != null && !translations[i].compressed && translations[i].valid && translations[i].used && translations[i].dirty)
+                victims.add(i);
+        }*/
 
         return victims;
     }
@@ -372,7 +384,7 @@ public final class Processor {
         int offset = offsetFromAddress(vaddr);
 
         TranslationEntry entry = null;
-
+        privilege.stats.numMemoryAccess++;
         // if not using a TLB, then the vpn is an index into the table
         if (!usingTLB) {
             if (translations == null || vpn >= translations.length ||

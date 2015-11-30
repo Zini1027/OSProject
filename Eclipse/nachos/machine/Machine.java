@@ -423,6 +423,9 @@ public final class Machine {
     private static String[] args = null;
 
     private static Stats stats = new Stats();
+    public static Stats getStats() {
+    	return stats;
+    }
 
     private static int numPhysPages = -1;
     private static long randomSeed = 0;

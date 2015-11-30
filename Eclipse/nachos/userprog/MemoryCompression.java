@@ -9,8 +9,40 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.Inflater;
 
+import nachos.machine.Config;
+import nachos.machine.Lib;
+import nachos.machine.Machine;
+
 public class MemoryCompression {
 
+	public static byte[] compress(byte[] data) throws IOException {
+		String alg = Config.getString("Processor.compressedAlg");
+		byte[] result;
+		if (alg.equals("gz")) {
+			result = compressGZIP(data);
+		} else if (alg.equals("zlib")){
+			result = compressZLIB(data);
+		} else {
+			Lib.assertNotReached("Wrong alg");
+			return null;
+		}
+		Machine.getStats().totalUnCompressedBytes += data.length;
+		Machine.getStats().totalCompressedBytes += result.length;
+		Machine.getStats().compressionAlg = alg;
+		return result;
+	}
+	public static byte[] decompress(byte[] data) throws IOException, DataFormatException {
+		String alg = Config.getString("Processor.compressedAlg");
+		if (alg.equals("gz")) {
+			return uncompressGZIP(data);
+		} else if (alg.equals("zlib")){
+			return decompressZLIB(data);
+		} else {
+			Lib.assertNotReached("Wrong alg");
+			return null;
+		}
+	}
+	
     public static byte[] compressZLIB(byte[] data) throws IOException {
         Deflater deflater = new Deflater();
         deflater.setInput(data);

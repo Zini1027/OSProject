@@ -5,6 +5,19 @@ import java.util.List;
 
 public class MemoryUsage {
 
+	public String toString() {
+		List<Integer> free = new ArrayList<>();
+		List<Integer> used = new ArrayList<>();
+		for(int i = 0 ; i < memUsageList.size(); i ++) {
+			if (memUsageList.get(i)) {
+				used.add(i);
+			} else {
+				free.add(i);
+			}
+		}
+		return String.format("Used: %s\nFree: %s\n", used, free);
+	}
+	
     /**
      * Initialize the page list memUsageList. memUsageList tracks the usage of physical memory.
      * true: the page has been used false: the page is free section
@@ -41,7 +54,7 @@ public class MemoryUsage {
         return page;
     }
 
-    public List<Integer> allocateMultiPagesUncomp(int numPages) {
+    public List<Integer> findMultiPagesUncomp(int numPages) {
         List<Integer> freePages = new ArrayList<Integer>();
         for (int i = 0; i < compStartPage; i++) {
             if (freePages.size() < numPages && !memUsageList.get(i)) {
