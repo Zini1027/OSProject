@@ -812,7 +812,8 @@ public class UserProcess {
     			continue;
     		}
     		if (entry.valid) {
-    			Lib.assertTrue(physMemStatus[entry.ppn] == null, "phys page " + entry.ppn + " is used by more than one vpn!");
+    			Lib.assertTrue(physMemStatus[entry.ppn] == null, "phys page " + entry.ppn + " is used by more than one vpn!"
+    					+ " current: " + physMemStatus[entry.ppn]);
     			physMemStatus[entry.ppn] = "[uncomp] Used by vpn " + entry.vpn;
     		} else {
     			Lib.assertTrue(entry.compressed && entry.compressMemBlock != null, "vpn " + entry.vpn + " is not valid and not compressed!");

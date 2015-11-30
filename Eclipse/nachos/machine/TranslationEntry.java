@@ -8,8 +8,12 @@ package nachos.machine;
 public final class TranslationEntry {
 	
 	public String toString() {
-		return String.format("vpn: %d ppn: %d valid: %b compress: %b used: %b dirty: %b read only: %b",
+		String result = String.format("vpn: %d ppn: %d valid: %b compress: %b used: %b dirty: %b read only: %b",
 				vpn, ppn, valid, compressed, used, dirty, readOnly);
+		if (compressed) {
+			result += " comp in ppn: " + compressMemBlock.startPPN + " " + compressMemBlock.compressedByte;
+		}
+		return result;
 	}
 	
     /**
