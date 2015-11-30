@@ -9,8 +9,8 @@
 #include "syscall.h"
 
 /* size of physical memory; with code, we'll run out of space! */
-#define SORTSIZE	256
-#define SORTSHIFT	4
+#define SORTSIZE        (4 * 1024)
+#define SORTSHIFT	0
 
 #define	A(i)	(array[(i)<<SORTSHIFT])
 
