@@ -1,4 +1,4 @@
-# OSProject
+# OSProject-Compressed Memory
 
 ## Authors
 
