@@ -5,6 +5,7 @@
 * Toan Luong
 * Hsiang-Yu Huang
 * Qian Huang
+* Hongyu Cui
 
 ## Import Eclipse project
 * File -> Import -> Existing Projects into Workspace -> root directory: OSProject/Eclipse
