@@ -16,6 +16,27 @@
 * File -> Import -> Existing Projects into Workspace -> root directory: OSProject/Eclipse
 * The project use jdk 1.8, so please install jdk 1.8 first.
 
+## Modified files
+* machine folder
+  * added CompressMemBlock.java
+  * modified Processor.java: added findVictim(int) function
+* userprog folder
+  * added MemoryCompression.java
+  * newly added functions in UserProcess.java
+    * Processor.exceptionPageFault case in handleException()
+    * getPageTableEntry()
+    * readCompressMemory()
+    * writeCompressMemory()
+    * handlePageFault()
+    * pageFaultHelper()
+    * swapinIntoFreePhysMem()
+    * swapinIntoVictims()
+    * printPhysMemStatus()
+    * printPageTable()
+* test folder
+  * added recursive_sum.c
+  * added quick_sort.c
+
 ## Run test coff file in nachos
 ```bash
 cd Eclipse/nachos/proj_mem_comp/
